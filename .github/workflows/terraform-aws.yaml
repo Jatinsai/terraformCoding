@@ -1,0 +1,76 @@
+name: Terraform Deployment
+
+on:
+  workflow_dispatch:
+
+    inputs:
+
+      service_folder:
+        description: 'Terraform Service Folder'
+        required: true
+        type: choice
+
+        options:
+          - AWS-EC2
+          - AWS-VPC
+          - AWS-S3
+          - AWS-EKS
+          - AWS-RDS
+          - AWS-ALB
+
+      tfvars_file:
+        description: 'Terraform Vars File'
+        required: true
+        type: choice
+
+        options:
+          - environment.tfvars
+          - qa.tfvars
+          - prod.tfvars
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+
+  terraform:
+
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ${{ github.event.inputs.service_folder }}
+
+    steps:
+
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.TERRAFORMAWS }}
+        aws-region: us-east-1
+
+    - name: Verify AWS Identity
+      run: aws sts get-caller-identity
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Validate
+      run: terraform validate
+
+    - name: Terraform Plan
+      run: |
+        terraform plan \
+        -var-file="${{ github.event.inputs.tfvars_file }}"
+
+    - name: Terraform Apply
+      run: |
+        terraform apply -auto-approve \
+        -var-file="${{ github.event.inputs.tfvars_file }}"
